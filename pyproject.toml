@@ -1,0 +1,11 @@
+[project]
+name = "zndraw-bouncy"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mace-torch>=0.3.14",
+    "molify>=0.2.2",
+    "zndraw>=0.6.0",
+]
