@@ -55,6 +55,7 @@ class MolecularDynamics(Extension):
         # Get the current atoms and attach calculator
         atoms = vis.atoms
         atoms.calc = model
+        atoms.info.pop("connectivity", None)
 
         # Find water molecule indices (last 3 atoms: O, H, H)
         n_atoms = len(atoms)
