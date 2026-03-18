@@ -18,18 +18,19 @@ from zndraw.extensions import Category, Extension
 from pathlib import Path
 
 model = mace_mp("small", device="cuda", default_dtype="float32")
-structs_path = Path("structures/graphene-c60")
+structs_path = Path("structures/graphene-C60")
 structs_path.mkdir(exist_ok=True, parents=True)
 
 class MolecularDynamics(Extension):
     category = Category.MODIFIER
+    v_factor = 10e10 / (10e15 * units.fs)
 
     velocity: float = Field(
         default=200,
-        ge=0.0,
-        le=5000.0,
+        ge=200.0,
+        le=4000.0,
         description="Initial velocity of water toward slab (m/s)",
-        json_schema_extra={"format": "range", "min": 0.0, "max": 5000.0, "step": 200},
+        json_schema_extra={"format": "range", "min": 200.0, "max": 4000.0, "step": 200},
     )
 
     def run(self, vis: ZnDraw, **kwargs):
@@ -39,8 +40,8 @@ class MolecularDynamics(Extension):
         vis.step = 0
         del vis[1:]
 
-        if os.path.exists(structs_path / f"{self.velocity:.1f}.xyz"):
-            vis.extend(read(structs_path / f"{self.velocity:.1f}.xyz", ":"))
+        if os.path.exists(structs_path / f"{self.velocity:.0f}.xyz"):
+            vis.extend(read(structs_path / f"{self.velocity:.0f}.xyz", ":"))
         else:
             # run the MD, append to vis and in parallel write the xyz file or at the end do ase.io.write(..., list(vis))
 
@@ -59,7 +60,7 @@ class MolecularDynamics(Extension):
 
             # Set directed velocity on water molecule toward surface (negative z)
             velocities = atoms.get_velocities()
-            added_velocity = np.array([0.0, 0.0, -self.velocity])
+            added_velocity = np.array([0.0, 0.0, -self.velocity*self.v_factor])
             for idx, _ in enumerate(atoms):
                 if atoms.arrays["velocity_mask"][idx]:
                     velocities[idx] += added_velocity
@@ -92,7 +93,7 @@ class MolecularDynamics(Extension):
                         f"Step {step + 1}/{steps}",
                         progress=(step + 1) / steps * 100,
                     )
-            write(structs_path / f"/{self.velocity:.1f}.xyz", list(vis))
+            write(structs_path / f"run{self.velocity:.0f}.xyz", list(vis))
             
 
     def _update_figures(self, vis: ZnDraw, distances: list, energies: list):
@@ -106,7 +107,7 @@ class MolecularDynamics(Extension):
             x="step",
             y="distance",
             labels={"step": "Frame", "distance": "Distance (Å)"},
-            title="Graphene-Fullerene Distance",
+            title="Graphene-fullerene Distance",
         )
         fig_dist.add_scatter(
             x=df_dist["step"],
@@ -171,24 +172,12 @@ def main():
     ).raise_for_status()
 
     # Create and optimize water molecule
-    print("Optimizing fullerene...")
-    fullerene = read("structures/C60.xyz")
-    fullerene.calc = model
-    opt_fullerene = LBFGS(fullerene)
-    opt_fullerene.run(fmax=0.1)
+    print("Optimizing system...")
+    atoms = read("structures/graphene-C60.xyz")
+    atoms.calc = model
+    opt = LBFGS(atoms)
+    opt.run(fmax=0.1)
 
-    # Read graphene sheet
-    print("Optimizing graphene surface...")
-    slab = read("structures/graphene.xyz")
-    slab.calc = model
-
-    # Fix bottom layer atoms during optimization
-
-    opt_slab = LBFGS(slab)
-    opt_slab.run(fmax=0.1)
-
-    # Remove constraint for MD
-    slab.set_constraint()
     """
     # Position water above the optimized surface
     slab_top = slab.positions[:, 2].max()
@@ -201,9 +190,8 @@ def main():
 
     # Combine slab and water
 
-    slab.arrays["velocity_mask"] = np.full(len(slab), False)
-    fullerene.arrays["velocity_mask"] = np.full(len(fullerene), True)
-    atoms = slab + fullerene
+    atoms.arrays["velocity_mask"] = np.full(len(atoms), False)
+    atoms.arrays["velocity_mask"][-60:] = True
 
     print("Setup complete. Starting ZnDraw...")
     vis.append(atoms)
