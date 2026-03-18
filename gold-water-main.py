@@ -20,10 +20,10 @@ from pathlib import Path
 model = mace_mp("small", device="cuda", default_dtype="float32")
 structs_path = Path("structures/gold-water")
 structs_path.mkdir(exist_ok=True, parents=True)
+v_factor = 10e13 / (10e15 * units.fs)
 
 class MolecularDynamics(Extension):
     category = Category.MODIFIER
-    v_factor = 10e13 / (10e15 * units.fs)
 
     velocity: float = Field(
         default=20,
@@ -159,7 +159,7 @@ class MolecularDynamics(Extension):
 
 def main():
     server_url = "http://localhost:4567"
-    room = "Gold and water"
+    room = "Gold-water"
 
     vis = ZnDraw(url=f"{server_url}/", room=room, user="user-ba91fc6b")
 
