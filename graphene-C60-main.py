@@ -16,18 +16,18 @@ from zndraw import ZnDraw
 from zndraw.extensions import Category, Extension
 from pathlib import Path
 
-structs_path = Path("../structures/graphene-C60")
+structs_path = Path("structures/graphene-C60")
 structs_path.mkdir(exist_ok=True, parents=True)
 
 class MolecularDynamics(Extension):
     category = Category.MODIFIER
 
     velocity: float = Field(
-        default=200,
-        ge=200.0,
-        le=4000.0,
+        default=1,
+        ge=400.0,
+        le=10000.0,
         description="Initial velocity of water toward slab (m/s)",
-        json_schema_extra={"format": "range", "min": 200.0, "max": 4000.0, "step": 200},
+        json_schema_extra={"format": "range", "min": 400.0, "max": 10000.0, "step": 400},
     )
 
     def run(self, vis: ZnDraw, **kwargs):
@@ -37,32 +37,31 @@ class MolecularDynamics(Extension):
         vis.step = 0
         del vis[1:]
 
-        atoms_list = read(structs_path / f"{self.velocity:.0f}.xyz", ":")
-
-        vis.extend(atoms_list)
-
+        vis.extend(read(structs_path / f"{self.velocity:.0f}.xyz", ":"))
 
 def main():
     server_url = "http://localhost:4567"
     room = "Graphene-fullerene"
 
-    vis = ZnDraw(url=f"{server_url}/", room=room, user="user-ba91fc6b")
+    vis = ZnDraw(url=f"{server_url}/", room=room)
 
     # Set this room as the default room to extend from
-    headers = vis.api._get_headers()
+
+    headers = vis.api.get_headers()
     requests.put(
-        f"{server_url}/api/rooms/default",
-        json={"roomId": room},
+        f"{server_url}/v1/server-settings/default-room",
+        json={"room_id": room},
         headers=headers,
     ).raise_for_status()
 
-    atoms = read("../structures/graphene-C60.xyz")
+    atoms = read("structures/graphene-C60.xyz")
+
     vis.append(atoms)
     if "cell" in vis.geometries:
         del vis.geometries["cell"]
 
     # Register the MD extension
-    vis.register_extension(MolecularDynamics, public=True)
+    vis.register_job(MolecularDynamics)
     vis.wait()
 
 
